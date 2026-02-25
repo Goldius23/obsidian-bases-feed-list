@@ -1,0 +1,10 @@
+{
+  "id": "bases-feed-view",
+  "name": "Bases Feed View",
+  "version": "0.0.1",
+  "minAppVersion": "1.10.0",
+  "description": "Adds a Feed view to Obsidian Bases.",
+  "author": "bases-feed-view",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}
