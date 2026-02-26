@@ -7,13 +7,16 @@ interface BasesEntry {
   app: { vault: { getAbstractFileByPath: (p: string) => unknown; getFiles: () => TFile[]; getResourcePath: (f: TFile) => string } };
 }
 
+interface PropertyOption { type: "property"; key: string; label: string; }
+interface SliderOption    { type: "slider"; key: string; label: string; min: number; max: number; step: number; }
+type ViewOption = PropertyOption | SliderOption;
+
 const HIDDEN_ALWAYS = new Set(["title", "aliases", "cssclasses", "cssclass"]);
 
 class FeedView extends Component {
   private obsApp: App;
   private controller: Record<string, unknown>;
   private containerEl: HTMLElement;
-  private coverProp = "Cover";
 
   constructor(app: App, controller: unknown, containerEl: HTMLElement) {
     super();
@@ -22,26 +25,15 @@ class FeedView extends Component {
     this.containerEl = containerEl;
   }
 
-  onload() {
-    this.containerEl.addClass("bfv-root");
-    this.render();
-  }
-
+  onload()        { this.containerEl.addClass("bfv-root"); this.render(); }
   onDataUpdated() { this.render(); }
-  onResize() {}
-  getEphemeralState() { return {}; }
+  onResize()      {}
+  getEphemeralState()          { return {}; }
   setEphemeralState(_s: unknown) {}
-  getViewActions() { return []; }
-  onunload() { this.containerEl.empty(); }
-
-  getLimit(): number | null {
-    const vc = this.getViewConfig();
-    const l = vc?.limit;
-    return typeof l === "number" && l > 0 ? l : null;
-  }
-
-  getQuery(): unknown { return this.controller.query ?? null; }
-  saveQuery(): void { (this.controller.saveQuery as (() => void) | undefined)?.(); }
+  getViewActions()             { return []; }
+  onunload()                   { this.containerEl.empty(); }
+  getQuery(): unknown          { return this.controller.query ?? null; }
+  saveQuery(): void            { (this.controller.saveQuery as (() => void) | undefined)?.(); }
   getVisibleProperties(): string[] { return []; }
   togglePropertyVisibility(_p: unknown): void { this.render(); }
 
@@ -53,18 +45,46 @@ class FeedView extends Component {
     return null;
   }
 
+  // Image property — saved to vc.data.coverProp by the Configure panel
+  private getCoverProp(): string {
+    const data = this.getViewConfig()?.data as Record<string, unknown> | undefined;
+    const raw = data?.coverProp;
+    if (typeof raw === "string") return raw.replace(/^note\./, "");
+    if (raw && typeof raw === "object") {
+      const o = raw as Record<string, unknown>;
+      const id = (typeof o.propertyId === "string" ? o.propertyId : null)
+              ?? (typeof o.id === "string" ? o.id : null)
+              ?? "";
+      return id.replace(/^note\./, "");
+    }
+    return "";
+  }
+
+  // Thumbnail size — saved to vc.data.thumbSize by the Configure panel slider
+  private getThumbSize(): number {
+    const data = this.getViewConfig()?.data as Record<string, unknown> | undefined;
+    const raw = data?.thumbSize;
+    if (typeof raw === "number") return raw;
+    if (typeof raw === "string") { const n = parseFloat(raw); if (!isNaN(n)) return n; }
+    return 48;
+  }
+
+  getLimit(): number | null {
+    const vc = this.getViewConfig();
+    const l = vc?.limit;
+    return typeof l === "number" && l > 0 ? l : null;
+  }
+
   private render() {
     const results = this.controller.results as Map<TFile, BasesEntry> | undefined;
     this.containerEl.empty();
     this.containerEl.addClass("bfv-root");
-
     if (!results || results.size === 0) {
       const empty = this.containerEl.createDiv("bfv-empty");
       setIcon(empty.createSpan(), "inbox");
       empty.createSpan({ text: " No results" });
       return;
     }
-
     const limit = this.getLimit();
     let count = 0;
     const list = this.containerEl.createDiv("bfv-list");
@@ -76,8 +96,11 @@ class FeedView extends Component {
   }
 
   private renderRow(list: HTMLElement, entry: BasesEntry) {
+    const thumbSize = this.getThumbSize();
     const row = list.createDiv("bfv-row");
-    this.renderThumb(row.createDiv("bfv-thumb"), entry);
+    row.style.setProperty("--bfv-thumb-size", `${thumbSize}px`);
+    const coverProp = this.getCoverProp();
+    this.renderThumb(row.createDiv("bfv-thumb"), entry, coverProp);
     const content = row.createDiv("bfv-content");
     const titleEl = content.createDiv("bfv-title");
     titleEl.setText(entry.file.basename);
@@ -86,15 +109,15 @@ class FeedView extends Component {
     });
     const fm = entry.frontmatter ?? {};
     for (const [key, val] of Object.entries(fm)) {
-      if (key === this.coverProp) continue;
+      if (coverProp && key === coverProp) continue;
       if (HIDDEN_ALWAYS.has(key.toLowerCase())) continue;
       if (val == null || val === "") continue;
       this.renderProp(content, key, val);
     }
   }
 
-  private renderThumb(parent: HTMLElement, entry: BasesEntry) {
-    const raw = entry.frontmatter?.[this.coverProp];
+  private renderThumb(parent: HTMLElement, entry: BasesEntry, coverProp: string) {
+    const raw = coverProp ? entry.frontmatter?.[coverProp] : undefined;
     if (raw) {
       const str = String(raw).trim();
       const wikiMatch = str.match(/^\[\[([^\]|]+)/);
@@ -122,12 +145,10 @@ class FeedView extends Component {
   private fallbackIcon(parent: HTMLElement, entry: BasesEntry) {
     this.renderLucide(parent, (entry.note?.icon ?? "file-text").replace(/^lucide-/, ""));
   }
-
   private renderLucide(parent: HTMLElement, iconName: string) {
     const wrap = parent.createDiv("bfv-icon");
     try { setIcon(wrap, iconName); } catch { setIcon(wrap, "file-text"); }
   }
-
   private renderProp(parent: HTMLElement, key: string, val: unknown) {
     const row = parent.createDiv("bfv-prop");
     row.createSpan({ cls: "bfv-prop-key", text: key });
@@ -144,7 +165,6 @@ class FeedView extends Component {
     }
     row.createSpan({ cls: "bfv-prop-val", text: String(val).replace(/^\[\[|\]\]$/g, "") });
   }
-
   private resolveVaultImage(name: string, app: BasesEntry["app"]): TFile | null {
     let f = app.vault.getAbstractFileByPath(name);
     if (!f) f = app.vault.getFiles().find(x => x.name === name || x.basename === name) ?? null;
@@ -160,6 +180,12 @@ export default class FeedViewPlugin extends Plugin {
       label: "Feed",
       factory: (controller: unknown, containerEl: HTMLElement) =>
         new FeedView(this.app, controller, containerEl),
+      // Discovered: options() on the registration object (not view class)
+      // Bases renders these natively in the Configure panel, saves to vc.data.<key>
+      options: (): ViewOption[] => [
+        { type: "property", key: "coverProp", label: "Image property" },
+        { type: "slider",   key: "thumbSize", label: "Image size", min: 32, max: 120, step: 4 },
+      ],
     });
   }
   onunload() {}
