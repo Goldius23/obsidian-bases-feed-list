@@ -34,8 +34,21 @@ class FeedView extends Component {
   onunload()                     { this.containerEl.empty(); }
   getQuery(): unknown            { return this.controller.query ?? null; }
   saveQuery(): void              { (this.controller.saveQuery as (() => void) | undefined)?.(); }
-  getVisibleProperties(): string[] { return []; }
-  togglePropertyVisibility(_p: unknown): void { this.render(); }
+
+  // Discovered: vc.order holds the checked properties from the Properties panel
+  // as namespaced strings e.g. ["file.name", "note.Cover", "note.Status"]
+  // Bases recreates the view (unload+load) on every toggle, so we always read fresh
+  getVisibleProperties(): string[] {
+    const vc = this.getViewConfig();
+    return Array.isArray(vc?.order) ? vc.order as string[] : [];
+  }
+  togglePropertyVisibility(_prop: unknown): void { this.render(); }
+
+  private getVisiblePropSet(): Set<string> | null {
+    const vc = this.getViewConfig();
+    if (!Array.isArray(vc?.order) || (vc.order as unknown[]).length === 0) return null;
+    return new Set((vc.order as string[]).map(p => stripNamespace(p)));
+  }
 
   private getViewConfig(): Record<string, unknown> | null {
     if (typeof this.controller.getViewConfig === "function") {
@@ -45,20 +58,17 @@ class FeedView extends Component {
     return null;
   }
 
-  // Sort spec — vc.sort: [{property, direction}]
-  // Bases does NOT pre-sort the Map for custom views, so we sort client-side
   getSort(): { prop: string; dir: "asc" | "desc" }[] {
     const raw = this.getViewConfig()?.sort;
     if (!Array.isArray(raw)) return [];
     return (raw as Record<string, unknown>[])
       .map(o => ({
-        prop: typeof o.property === "string" ? o.property.replace(/^note\./, "") : "",
+        prop: typeof o.property === "string" ? stripNamespace(o.property) : "",
         dir: typeof o.direction === "string" && o.direction.toUpperCase() === "DESC" ? "desc" as const : "asc" as const,
       }))
       .filter(s => s.prop !== "");
   }
 
-  // Limit — 0 means "show all" (not zero results)
   getLimit(): number | null {
     const l = this.getViewConfig()?.limit;
     return typeof l === "number" && l > 0 ? l : null;
@@ -67,11 +77,11 @@ class FeedView extends Component {
   private getCoverProp(): string {
     const data = this.getViewConfig()?.data as Record<string, unknown> | undefined;
     const raw = data?.coverProp;
-    if (typeof raw === "string") return raw.replace(/^note\./, "");
+    if (typeof raw === "string") return stripNamespace(raw);
     if (raw && typeof raw === "object") {
       const o = raw as Record<string, unknown>;
       const id = (typeof o.propertyId === "string" ? o.propertyId : null) ?? (typeof o.id === "string" ? o.id : null) ?? "";
-      return id.replace(/^note\./, "");
+      return stripNamespace(id);
     }
     return "";
   }
@@ -93,8 +103,6 @@ class FeedView extends Component {
       empty.createSpan({ text: " No results" });
       return;
     }
-
-    // Client-side sort (Bases doesn't sort the Map for custom views)
     let entries = Array.from(results.values());
     const sortSpec = this.getSort();
     if (sortSpec.length > 0) {
@@ -106,29 +114,24 @@ class FeedView extends Component {
         return 0;
       });
     }
-
-    const limit  = this.getLimit();
-    const vc     = this.getViewConfig();
-    const list   = this.containerEl.createDiv("bfv-list");
-
-    // Group by
+    const limit = this.getLimit();
+    const vc    = this.getViewConfig();
+    const list  = this.containerEl.createDiv("bfv-list");
     const groupByRaw = vc?.groupBy as Record<string, unknown> | null | undefined;
-    const groupProp  = groupByRaw?.property ? String(groupByRaw.property).replace(/^note\./, "") : null;
+    const groupProp  = groupByRaw?.property ? stripNamespace(String(groupByRaw.property)) : null;
     const groupDir   = groupByRaw?.direction && String(groupByRaw.direction).toUpperCase() === "DESC" ? "desc" : "asc";
-
     if (groupProp) {
       const buckets = new Map<string, BasesEntry[]>();
       for (const entry of entries) {
         const raw   = getEntryProp(entry, groupProp);
         const label = raw == null ? "—"
-          : Array.isArray(raw) ? raw.map(v => String(v).replace(/^\[\[|\]\]$/g, "")).join(", ")
-          : String(raw).replace(/^\[\[|\]\]$/g, "");
+          : Array.isArray(raw) ? raw.map(v => stripWikilinks(String(v))).join(", ")
+          : stripWikilinks(String(raw));
         if (!buckets.has(label)) buckets.set(label, []);
         buckets.get(label)!.push(entry);
       }
       const sortedKeys = Array.from(buckets.keys()).sort((a, b) =>
-        groupDir === "desc" ? b.localeCompare(a, undefined, { numeric: true }) : a.localeCompare(b, undefined, { numeric: true })
-      );
+        groupDir === "desc" ? b.localeCompare(a, undefined, { numeric: true }) : a.localeCompare(b, undefined, { numeric: true }));
       let count = 0;
       for (const key of sortedKeys) {
         if (limit !== null && count >= limit) break;
@@ -156,16 +159,36 @@ class FeedView extends Component {
     row.style.setProperty("--bfv-thumb-size", `${this.getThumbSize()}px`);
     const coverProp = this.getCoverProp();
     this.renderThumb(row.createDiv("bfv-thumb"), entry, coverProp);
-    const content = row.createDiv("bfv-content");
-    const titleEl = content.createDiv("bfv-title");
+    const content    = row.createDiv("bfv-content");
+    const titleEl    = content.createDiv("bfv-title");
     titleEl.setText(entry.file.basename);
     titleEl.addEventListener("click", () => this.obsApp.workspace.openLinkText(entry.file.path, "", false));
-    const fm = entry.frontmatter ?? {};
-    for (const [key, val] of Object.entries(fm)) {
-      if (coverProp && key === coverProp) continue;
-      if (HIDDEN_ALWAYS.has(key.toLowerCase())) continue;
-      if (val == null || val === "") continue;
-      this.renderProp(content, key, val);
+
+    // Render props respecting Properties panel order and visibility (vc.order)
+    const orderedKeys = this.getVisibleProperties();
+    if (orderedKeys.length > 0) {
+      for (const rawKey of orderedKeys) {
+        const stripped = stripNamespace(rawKey);
+        let val: unknown;
+        if (rawKey.startsWith("file.")) {
+          val = getEntryProp(entry, rawKey);
+        } else {
+          const fm = entry.frontmatter ?? {};
+          val = fm[stripped] ?? fm[rawKey];
+          if (coverProp && stripped === coverProp) continue;
+          if (HIDDEN_ALWAYS.has(stripped.toLowerCase())) continue;
+        }
+        if (val == null || val === "") continue;
+        this.renderProp(content, stripped, val);
+      }
+    } else {
+      const fm = entry.frontmatter ?? {};
+      for (const [key, val] of Object.entries(fm)) {
+        if (coverProp && key === coverProp) continue;
+        if (HIDDEN_ALWAYS.has(key.toLowerCase())) continue;
+        if (val == null || val === "") continue;
+        this.renderProp(content, key, val);
+      }
     }
   }
 
@@ -225,9 +248,15 @@ class FeedView extends Component {
   }
 }
 
+function stripNamespace(s: string): string {
+  return s.replace(/^(note|formula|implicit|file)\./, "");
+}
+function stripWikilinks(s: string): string {
+  return s.replace(/^\[\[|\]\]$/g, "");
+}
 function getEntryProp(entry: BasesEntry, prop: string): unknown {
   switch (prop) {
-    case "file.name": case "name":       return entry.file.name;
+    case "file.name": case "name":         return entry.file.name;
     case "file.basename": case "basename": return entry.file.basename;
     case "file.path":  return entry.file.path;
     case "file.ext":   return entry.file.extension;
@@ -241,7 +270,6 @@ function getEntryProp(entry: BasesEntry, prop: string): unknown {
   for (const [k, v] of Object.entries(fm)) { if (k.toLowerCase() === lower) return v; }
   return undefined;
 }
-
 function compareValues(a: unknown, b: unknown): number {
   if (a == null) return b == null ? 0 : 1;
   if (b == null) return -1;
