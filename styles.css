@@ -1,58 +1,55 @@
-/* ── Bases Feed View ─────────────────────────────────────────────────────── */
-
 .bfv-root {
-  overflow-y: auto;
   height: 100%;
-  padding: 8px 12px;
+  overflow-y: auto;
+  padding: 6px 8px 16px;
 }
 
 .bfv-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
+/* ── Row ── */
 .bfv-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
-  padding: 6px 8px;
+  padding: 7px 10px;
   border-radius: var(--radius-m, 6px);
+  background: var(--background-secondary);
   cursor: default;
+  transition: background 80ms ease;
 }
-.bfv-row:hover {
-  background: var(--background-modifier-hover);
-}
+.bfv-row:hover { background: var(--background-modifier-hover); }
 
+/* ── Thumbnail (left column, fixed square) ── */
 .bfv-thumb {
   flex-shrink: 0;
   width: var(--bfv-thumb-size, 48px);
   height: var(--bfv-thumb-size, 48px);
   border-radius: var(--radius-s, 4px);
-  background: var(--background-secondary);
+  overflow: hidden;
+  background: var(--background-modifier-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
 }
-
 .bfv-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: inherit;
+  display: block;
 }
-
 .bfv-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 100%;
   color: var(--text-muted);
 }
-.bfv-icon svg { width: 55%; height: 55%; }
+.bfv-icon svg { width: 22px; height: 22px; }
 
+/* ── Content (right column) ── */
 .bfv-content {
   flex: 1;
   min-width: 0;
@@ -61,50 +58,74 @@
   gap: 2px;
 }
 
+/* ── Title ── */
 .bfv-title {
-  font-weight: var(--font-semibold);
   font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
   color: var(--text-normal);
-  cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+  line-height: 1.3;
 }
 .bfv-title:hover {
+  color: var(--link-color);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
+/* ── Property rows ── */
 .bfv-prop {
-  font-size: var(--font-ui-small);
-  color: var(--text-muted);
   display: flex;
-  flex-wrap: wrap;
-  gap: 2px 4px;
   align-items: baseline;
-}
-.bfv-prop-key  { color: var(--text-faint); }
-.bfv-prop-sep  { color: var(--text-faint); }
-.bfv-prop-val  { color: var(--text-muted); }
-
-.bfv-tags { display: flex; flex-wrap: wrap; gap: 3px; }
-.bfv-tag {
-  display: inline-block;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 3px;
-  padding: 0 5px;
+  gap: 0;
   font-size: var(--font-ui-smaller);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bfv-prop-key { color: var(--text-faint); }
+.bfv-prop-sep { color: var(--text-faint); margin-right: 3px; }
+.bfv-prop-val { color: var(--text-muted); }
+
+/* ── Tag chips ── */
+.bfv-tags { display: inline-flex; flex-wrap: wrap; gap: 3px; }
+.bfv-tag {
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--background-modifier-border);
   color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.7;
+  white-space: nowrap;
 }
 
+/* ── Empty state ── */
 .bfv-empty {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 24px 8px;
+  padding: 40px 0;
   color: var(--text-faint);
   font-size: var(--font-ui-small);
+}
+
+/* ── Configure view settings panel ── */
+.bfv-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+.bfv-setting-label {
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+}
+.bfv-setting-select {
+  min-width: 140px;
 }
 
 /* ── Group headers ── */
@@ -134,6 +155,7 @@
 .bfv-link {
   color: var(--link-color);
   cursor: pointer;
+  text-decoration: none;
 }
 .bfv-link:hover {
   text-decoration: underline;

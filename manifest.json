@@ -1,9 +1,9 @@
 {
   "id": "bases-feed-view",
   "name": "Bases Feed View",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "minAppVersion": "1.10.0",
-  "description": "Adds a Feed view to Obsidian Bases.",
+  "description": "Adds a Feed view to Obsidian Bases — a scrollable vertical list with thumbnails, clickable links, sort, filter, group by, and property visibility.",
   "author": "bases-feed-view",
   "authorUrl": "",
   "isDesktopOnly": false
