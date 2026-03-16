@@ -1,8 +1,0 @@
-filters:
-  conjunction: and
-  filters: []
-views:
-  - type: feed
-    name: Feed
-    config:
-      coverProp: Cover
