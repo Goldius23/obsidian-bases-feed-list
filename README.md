@@ -22,4 +22,4 @@ Obsidian 1.10.0+ (Bases API)
 4. Add `type: feed` to any `.base` file's views list
 
 # DISCLAIMER
-I "vibe coded" this entier project and i hardly know anything about coding. It works on my Setup but I don't know if this will transfer to you. If anybody who knows more about programming than I do want to improve or modify the Plugin feel free to do so!
+I "vibe coded" this entier project and i hardly know anything about coding. It works on my Setup but I don't know if this will transfer to you. If anybody who knows more about programming than I do wants to improve or modify the Plugin feel free to do so!
