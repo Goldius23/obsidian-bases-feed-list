@@ -1,6 +1,6 @@
 # Bases Feed View
 
-A custom view plugin for [Obsidian Bases](https://obsidian.md/bases) that renders notes as a vertical scrollable feed — thumbnail on the left, title and properties on the right.
+A custom view plugin for [Obsidian](https://obsidian.md/) Bases that renders notes as a vertical scrollable feed — thumbnail on the left, title and properties on the right.
 
 ## Features
 
