@@ -18,7 +18,7 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-// src/main.ts
+// home/claude/bfv-v1/src/main.ts
 var main_exports = {};
 __export(main_exports, {
   default: () => FeedViewPlugin
@@ -271,9 +271,27 @@ var FeedView = class extends import_obsidian.Component {
     }
     this.fallbackIcon(parent, entry);
   }
+  /**
+   * Icon fallback priority (when no cover image is configured or resolved):
+   *   1. Frontmatter "icon" property — if present and non-empty
+   *   2. Note's system icon (entry.note.icon, set via Obsidian icon picker)
+   *   3. Generic "file-text"
+   */
   fallbackIcon(parent, entry) {
     var _a, _b;
-    this.renderLucide(parent, ((_b = (_a = entry.note) == null ? void 0 : _a.icon) != null ? _b : "file-text").replace(/^lucide-/, ""));
+    const fm = (_a = entry.frontmatter) != null ? _a : {};
+    const fmIconKey = Object.keys(fm).find((k) => k.toLowerCase() === "icon");
+    const fmIcon = fmIconKey ? fm[fmIconKey] : void 0;
+    if (fmIcon && typeof fmIcon === "string" && fmIcon.trim() !== "") {
+      this.renderLucide(parent, fmIcon.trim().replace(/^lucide-/, ""));
+      return;
+    }
+    const noteIcon = (_b = entry.note) == null ? void 0 : _b.icon;
+    if (noteIcon && noteIcon.trim() !== "") {
+      this.renderLucide(parent, noteIcon.replace(/^lucide-/, ""));
+      return;
+    }
+    this.renderLucide(parent, "file-text");
   }
   renderLucide(parent, iconName) {
     const wrap = parent.createDiv("bfv-icon");
@@ -384,24 +402,34 @@ function getEntryProp(entry, prop) {
   return void 0;
 }
 function getFormulaValue(entry, name) {
-  var _a, _b, _c;
-  const tryCache = (cache) => {
-    if (!cache || typeof cache !== "object") return void 0;
-    const c = cache;
-    if (name in c) return c[name];
-    const lower = name.toLowerCase();
-    for (const [k, v] of Object.entries(c)) {
-      if (k.toLowerCase() === lower) return v;
-    }
-    return void 0;
-  };
+  var _a, _b;
   const e = entry;
-  const v1 = tryCache((_a = e.formulaResults) == null ? void 0 : _a.cachedFormulaOutputs);
-  if (v1 !== void 0) return v1;
-  const v2 = tryCache(
-    (_c = (_b = e.formula) == null ? void 0 : _b.formulaResults) == null ? void 0 : _c.cachedFormulaOutputs
-  );
-  return v2;
+  const fr = e.formulaResults;
+  if (fr && typeof fr.getFormulaValue === "function") {
+    try {
+      const tv = fr.getFormulaValue(name);
+      if (tv != null) {
+        const str = typeof tv.toString === "function" ? tv.toString() : String(tv);
+        if (str !== "null" && str !== "undefined") return str;
+      }
+    } catch (e2) {
+    }
+  }
+  const formulas = fr == null ? void 0 : fr.formulas;
+  if (formulas) {
+    const fo = (_b = formulas[name]) != null ? _b : (_a = Object.entries(formulas).find(([k]) => k.toLowerCase() === name.toLowerCase())) == null ? void 0 : _a[1];
+    if (fo && typeof fo.getValue === "function") {
+      try {
+        const tv = fo.getValue(entry);
+        if (tv != null) {
+          const str = typeof tv.toString === "function" ? tv.toString() : String(tv);
+          if (str !== "null" && str !== "undefined") return str;
+        }
+      } catch (e2) {
+      }
+    }
+  }
+  return void 0;
 }
 function compareValues(a, b) {
   if (a == null) return b == null ? 0 : 1;
